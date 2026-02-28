@@ -1,0 +1,11 @@
+run = "honcho start"
+modules = ["python-3.12", "nodejs-20"]
+
+[nix]
+channel = "stable-23_05"
+
+[unitTest]
+language = "python3"
+
+[deployment]
+run = ["sh", "-c", "honcho start"]
