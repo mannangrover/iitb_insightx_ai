@@ -148,6 +148,7 @@ def get_api_url():
         # Fall back to environment variable
         return os.getenv("API_URL", "http://localhost:8000")
 
+# store the current API URL in session state so that it can be overridden via the UI
 if "api_url" not in st.session_state:
     st.session_state.api_url = get_api_url()
 if "session_id" not in st.session_state:
@@ -156,6 +157,15 @@ if "api_session_status" not in st.session_state:
     st.session_state.api_session_status = "No session"
 if "last_chart" not in st.session_state:
     st.session_state.last_chart = None
+
+# allow the user to override the backend URL via sidebar input (useful when running remote API)
+with st.sidebar:
+    st.subheader("⚙️ Configuration")
+    new_url = st.text_input("API URL", value=st.session_state.api_url,
+                            help="Backend endpoint used by the chat interface")
+    if new_url and new_url != st.session_state.api_url:
+        st.session_state.api_url = new_url
+        st.info(f"API url set to: {new_url}")
 
 # Sidebar
 with st.sidebar:
