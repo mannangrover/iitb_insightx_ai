@@ -305,7 +305,7 @@ Keep the response focused and easy to understand. Use ₹ for currency amounts."
         return base
     
     def _template_descriptive(self, result: Dict[str, Any], insights: list) -> str:
-        stats = result.get("statistics", {})
+        stats = result.get("statistics") or {}
         response = "**Descriptive Summary**\n\n"
 
         # Key overview

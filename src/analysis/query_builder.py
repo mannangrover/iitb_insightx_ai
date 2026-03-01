@@ -697,14 +697,17 @@ class QueryBuilder:
             n = entities.get('top_n') or entities.get('bottom_n')
             fraud_by_category = sorted(fraud_by_category, key=lambda x: x[1], reverse=reverse)[:n]
 
+        fraud_rate_percent = (fraud_count / total_transactions * 100) if total_transactions > 0 else 0
+        failure_rate_percent = (failed_count / total_transactions * 100) if total_transactions > 0 else 0
+
         result = {
             "insight": "Risk analysis summary",
             "total_transactions": total_transactions,
             "total_count": total_transactions,
             "fraud_count": fraud_count,
-            "fraud_rate_percent": (fraud_count / total_transactions * 100) if total_transactions > 0 else 0,
+            "fraud_rate_percent": fraud_rate_percent,
             "failed_count": failed_count,
-            "failure_rate_percent": (failed_count / total_transactions * 100) if total_transactions > 0 else 0,
+            "failure_rate_percent": failure_rate_percent,
             "fraud_by_category": [
                 {"category": f[0], "fraud_count": f[1]}
                 for f in fraud_by_category
@@ -715,7 +718,7 @@ class QueryBuilder:
             "failure_hotspots_by_category": failure_hotspots_by_category,
             "failure_hotspots_by_state": failure_hotspots_by_state,
             "failure_hotspots_by_bank": failure_hotspots_by_bank,
-            "risk_level": "high" if (fraud_count / total_transactions * 100) > 5 else "medium" if (fraud_count / total_transactions * 100) > 2 else "low"
+            "risk_level": "high" if fraud_rate_percent > 5 else "medium" if fraud_rate_percent > 2 else "low"
         }
         if group_results is not None:
             result['groups'] = group_results
