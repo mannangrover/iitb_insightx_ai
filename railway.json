@@ -4,7 +4,7 @@
     "builder": "dockerfile"
   },
   "deploy": {
-    "startCommand": "/app/entrypoint.sh",
+    "startCommand": "python main.py",
     "restartPolicyType": "on_failure",
     "restartPolicyMaxRetries": 5
   }
