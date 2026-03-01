@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
+import sqlite3
 from src.database.database import init_db, DATABASE_URL
 from src.api.routes import router
 import os
@@ -38,7 +39,16 @@ def _is_valid_sqlite_file(db_path: Path) -> bool:
     try:
         with db_path.open("rb") as f:
             header = f.read(16)
-        return header == b"SQLite format 3\x00"
+        if header != b"SQLite format 3\x00":
+            return False
+
+        conn = sqlite3.connect(str(db_path))
+        try:
+            conn.execute("PRAGMA schema_version;").fetchone()
+            conn.execute("SELECT name FROM sqlite_master LIMIT 1;").fetchone()
+        finally:
+            conn.close()
+        return True
     except Exception:
         return False
 
