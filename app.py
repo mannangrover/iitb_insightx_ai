@@ -141,7 +141,17 @@ if "pending_query" not in st.session_state:
 
 # Load API URL from environment or Streamlit secrets, fall back to localhost
 def normalize_api_url(url: str) -> str:
-    return (url or "").strip().rstrip("/")
+    cleaned = (url or "").strip()
+
+    # Handle common pasted secrets format: api_url = "https://..."
+    if "=" in cleaned and cleaned.lower().startswith("api_url"):
+        cleaned = cleaned.split("=", 1)[1].strip()
+
+    # Strip optional surrounding quotes
+    if (cleaned.startswith('"') and cleaned.endswith('"')) or (cleaned.startswith("'") and cleaned.endswith("'")):
+        cleaned = cleaned[1:-1].strip()
+
+    return cleaned.rstrip("/")
 
 
 def get_api_url():
