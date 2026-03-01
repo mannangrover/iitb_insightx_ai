@@ -2,7 +2,7 @@
 REM InsightX Setup Script for Windows
 
 echo Creating virtual environment...
-python -m venv venv
+py -3.11 -m venv venv
 call venv\Scripts\activate.bat
 
 echo Installing dependencies...

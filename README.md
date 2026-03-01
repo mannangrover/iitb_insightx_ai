@@ -44,11 +44,11 @@ InsightX/
 - **NLP**: Custom intent recognition with pattern matching
 - **LLM Integration**: OpenAI API (optional, with fallback templates)
 - **Data Processing**: Pandas, NumPy, Scikit-learn
-- **Python**: 3.8+
+- **Python**: 3.11.x
 
 ## 📋 Prerequisites
 
-- Python 3.8 or higher
+- Python 3.11.x
 - pip or conda package manager
 - OpenAI API key (optional, for enhanced responses)
 - ✅ **No database server installation needed!**
@@ -69,7 +69,7 @@ python -m venv venv
 venv\Scripts\activate
 
 # Or using conda
-conda create -n insightx python=3.10
+conda create -n insightx python=3.11
 conda activate insightx
 ```
 

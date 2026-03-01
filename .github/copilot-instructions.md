@@ -10,7 +10,7 @@ InsightX is a hackathon solution that provides a conversational AI interface for
 - **Database**: SQLite with SQLAlchemy ORM (serverless, lightweight)
 - **NLP**: Custom intent recognition with pattern matching
 - **Data Processing**: Pandas, NumPy, Scikit-learn
-- **Python Version**: 3.8+
+- **Python Version**: 3.11.x
 
 ## Project Structure
 
