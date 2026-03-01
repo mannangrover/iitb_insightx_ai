@@ -4,7 +4,9 @@ import time
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import DatabaseError as SQLAlchemyDatabaseError
 from src.database.database import get_db
+from src.database.database import SessionLocal, DATABASE_URL, get_sqlite_db_path, check_sqlite_db_health, recover_sqlite_db
 from src.nlp.intent_recognizer import IntentRecognizer
 from src.analysis.query_builder import QueryBuilder
 from src.api.response_generator import ResponseGenerator
@@ -204,11 +206,38 @@ async def process_query(request: QueryRequest, db: Session = Depends(get_db)):
         # Step 4: Build and execute query
         query_builder = QueryBuilder(db)
         compute_start = time.perf_counter()
-        analysis_result = query_builder.execute_query(
-            intent_result.type,
-            intent_result.entities,
-            request.query  # Pass original query for pattern detection
-        )
+        try:
+            analysis_result = query_builder.execute_query(
+                intent_result.type,
+                intent_result.entities,
+                request.query  # Pass original query for pattern detection
+            )
+        except SQLAlchemyDatabaseError as db_error:
+            error_text = str(db_error).lower()
+            if "file is not a database" not in error_text:
+                raise
+
+            # Runtime self-heal for invalid SQLite files in deployment
+            recovered, reason = recover_sqlite_db()
+            if not recovered:
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "Database recovery failed after detecting an invalid SQLite file. "
+                        f"Reason: {reason}"
+                    ),
+                )
+
+            retry_db = SessionLocal()
+            try:
+                retry_query_builder = QueryBuilder(retry_db)
+                analysis_result = retry_query_builder.execute_query(
+                    intent_result.type,
+                    intent_result.entities,
+                    request.query,
+                )
+            finally:
+                retry_db.close()
         compute_ms = (time.perf_counter() - compute_start) * 1000
         analysis_result["_meta"] = {
             "compute_ms": round(compute_ms, 2),
@@ -260,10 +289,19 @@ async def process_query(request: QueryRequest, db: Session = Depends(get_db)):
 @router.get("/health")
 async def health_check():
     """Health check endpoint"""
+    sqlite_path = get_sqlite_db_path()
+    db_healthy, db_reason = check_sqlite_db_health()
+
     return {
         "status": "healthy",
         "service": "InsightX Conversational AI",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "database": {
+            "url": DATABASE_URL,
+            "sqlite_path": str(sqlite_path) if sqlite_path else None,
+            "healthy": db_healthy,
+            "reason": db_reason,
+        },
     }
 
 @router.get("/supported-entities")
