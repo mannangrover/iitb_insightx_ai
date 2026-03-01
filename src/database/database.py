@@ -99,3 +99,37 @@ def recover_sqlite_db(seed_csv_path: str = "data/upi_transactions_2024.csv") -> 
         return healthy, f"recovered:{reason}"
     except Exception as e:
         return False, f"recovery-failed:{e}"
+
+
+def get_transaction_count() -> int:
+    """Return total transaction count, or 0 if unavailable."""
+    try:
+        from src.database.models import Transaction
+        db = SessionLocal()
+        try:
+            return db.query(Transaction).count()
+        finally:
+            db.close()
+    except Exception:
+        return 0
+
+
+def seed_data_if_empty(seed_csv_path: str = "data/upi_transactions_2024.csv") -> tuple[bool, int, str]:
+    """Seed data if DB is empty. Returns (seeded, row_count, message)."""
+    try:
+        current_count = get_transaction_count()
+        if current_count > 0:
+            return False, current_count, "already-seeded"
+
+        from src.database.data_loader import DataLoader
+
+        loader = DataLoader()
+        if os.path.exists(seed_csv_path):
+            loader.load_and_populate(csv_path=seed_csv_path)
+        else:
+            loader.load_and_populate(num_synthetic=250000)
+
+        final_count = get_transaction_count()
+        return True, final_count, "seeded"
+    except Exception as e:
+        return False, 0, f"seed-failed:{e}"
