@@ -140,17 +140,36 @@ if "pending_query" not in st.session_state:
     st.session_state.pending_query = None
 
 # Load API URL from environment or Streamlit secrets, fall back to localhost
+def normalize_api_url(url: str) -> str:
+    return (url or "").strip().rstrip("/")
+
+
 def get_api_url():
     # Try Streamlit secrets first (for Streamlit Cloud)
     try:
-        return st.secrets.get("api_url", "http://localhost:8000")
-    except:
-        # Fall back to environment variable
-        return os.getenv("API_URL", "http://localhost:8000")
+        for key in ["api_url", "API_URL", "backend_url", "BACKEND_URL"]:
+            value = st.secrets.get(key)
+            if value:
+                return normalize_api_url(value)
+    except Exception:
+        pass
+
+    # Fall back to environment variables
+    for key in ["API_URL", "BACKEND_URL"]:
+        value = os.getenv(key)
+        if value:
+            return normalize_api_url(value)
+
+    return "http://localhost:8000"
 
 # store the current API URL in session state so that it can be overridden via the UI
 if "api_url" not in st.session_state:
     st.session_state.api_url = get_api_url()
+else:
+    configured_api_url = get_api_url()
+    localhost_urls = {"http://localhost:8000", "http://127.0.0.1:8000"}
+    if st.session_state.api_url in localhost_urls and configured_api_url not in localhost_urls:
+        st.session_state.api_url = configured_api_url
 if "session_id" not in st.session_state:
     st.session_state.session_id = None
 if "api_session_status" not in st.session_state:
@@ -163,6 +182,7 @@ with st.sidebar:
     st.subheader("⚙️ Configuration")
     new_url = st.text_input("API URL", value=st.session_state.api_url,
                             help="Backend endpoint used by the chat interface")
+    new_url = normalize_api_url(new_url)
     if new_url and new_url != st.session_state.api_url:
         st.session_state.api_url = new_url
         st.info(f"API url set to: {new_url}")
@@ -189,6 +209,17 @@ with st.sidebar:
                     st.session_state.query_history = []
                     st.success(f"✓ Started: {data['session_id'][:12]}...")
                     st.rerun()
+                else:
+                    st.error(f"Failed to start session: {response.status_code}")
+                    st.error(response.text)
+            except requests.exceptions.ConnectionError:
+                if "localhost" in st.session_state.api_url or "127.0.0.1" in st.session_state.api_url:
+                    st.error("❌ Cannot connect to backend from deployment. `localhost` points to the Streamlit container.")
+                    st.info("Set `API_URL` (or Streamlit `secrets[\"api_url\"]`) to your deployed FastAPI URL.")
+                else:
+                    st.error(f"❌ Cannot connect to API endpoint: {st.session_state.api_url}")
+            except requests.exceptions.Timeout:
+                st.error("❌ Session start timeout from API.")
             except Exception as e:
                 st.error(f"Failed: {e}")
     
@@ -267,7 +298,7 @@ with st.sidebar:
         value=st.session_state.api_url,
         help="Enter the FastAPI server URL"
     )
-    st.session_state.api_url = api_url
+    st.session_state.api_url = normalize_api_url(api_url)
     
     show_raw = st.checkbox("Show raw data", value=False)
     # Chart options
@@ -502,8 +533,11 @@ if user_query:
                 st.error(api_response.text)
 
         except requests.exceptions.ConnectionError:
-            st.error("❌ Cannot connect to API. Make sure the server is running on http://localhost:8000")
-            st.info("Run `python main.py` in another terminal to start the server")
+            if "localhost" in st.session_state.api_url or "127.0.0.1" in st.session_state.api_url:
+                st.error("❌ Cannot connect to API at localhost from this environment.")
+                st.info("For deployment, set `API_URL` (or Streamlit `secrets[\"api_url\"]`) to your deployed backend URL.")
+            else:
+                st.error(f"❌ Cannot connect to API endpoint: {st.session_state.api_url}")
         except requests.exceptions.Timeout:
             st.error("❌ Request timeout. The server is taking too long to respond.")
         except Exception as e:

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from src.database.database import init_db
+from pathlib import Path
+from src.database.database import init_db, DATABASE_URL
 from src.api.routes import router
 import os
 from dotenv import load_dotenv
@@ -24,10 +25,35 @@ app.add_middleware(
 )
 
 # Initialize database
+def _get_sqlite_db_path(database_url: str) -> Path | None:
+    if not database_url.startswith("sqlite:///"):
+        return None
+    raw_path = database_url[len("sqlite:///"):]
+    return Path(raw_path)
+
+
+def _is_valid_sqlite_file(db_path: Path) -> bool:
+    if not db_path.exists() or db_path.stat().st_size < 100:
+        return False
+    try:
+        with db_path.open("rb") as f:
+            header = f.read(16)
+        return header == b"SQLite format 3\x00"
+    except Exception:
+        return False
+
+
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database and load data if needed"""
+    """Initialize database and load data if needed, recovering from invalid DB files."""
     try:
+        sqlite_path = _get_sqlite_db_path(DATABASE_URL)
+
+        # Recover from invalid/corrupt SQLite files (e.g., accidental text/LFS pointer file)
+        if sqlite_path and sqlite_path.exists() and not _is_valid_sqlite_file(sqlite_path):
+            print(f"⚠ Invalid SQLite file detected at {sqlite_path}. Recreating database...")
+            sqlite_path.unlink(missing_ok=True)
+
         init_db()
         print("✓ Database initialized successfully")
         
@@ -36,14 +62,29 @@ async def startup_event():
         from src.database.models import Transaction
         
         db = SessionLocal()
-        transaction_count = db.query(Transaction).count()
-        db.close()
+        try:
+            transaction_count = db.query(Transaction).count()
+        except Exception as db_error:
+            db.close()
+            print(f"⚠ Database check failed: {db_error}")
+            if sqlite_path and sqlite_path.exists():
+                print("⚠ Rebuilding SQLite database from scratch...")
+                sqlite_path.unlink(missing_ok=True)
+            init_db()
+            db = SessionLocal()
+            transaction_count = db.query(Transaction).count()
+        finally:
+            db.close()
         
         if transaction_count == 0:
             print("📦 Database is empty. Loading sample transactions...")
             from src.database.data_loader import DataLoader
             loader = DataLoader()
-            loader.load_data(num_records=250000)
+            seed_csv = os.getenv("SEED_CSV_PATH", "data/upi_transactions_2024.csv")
+            if os.path.exists(seed_csv):
+                loader.load_and_populate(csv_path=seed_csv)
+            else:
+                loader.load_and_populate(num_synthetic=250000)
             print("✓ Sample data loaded successfully")
     except Exception as e:
         print(f"✗ Startup error: {e}")
