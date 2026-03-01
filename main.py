@@ -87,15 +87,19 @@ async def startup_event():
             db.close()
         
         if transaction_count == 0:
-            print("📦 Database is empty. Loading sample transactions...")
-            from src.database.data_loader import DataLoader
-            loader = DataLoader()
-            seed_csv = os.getenv("SEED_CSV_PATH", "data/upi_transactions_2024.csv")
-            if os.path.exists(seed_csv):
-                loader.load_and_populate(csv_path=seed_csv)
+            auto_seed = os.getenv("AUTO_SEED_ON_STARTUP", "false").lower() in {"1", "true", "yes"}
+            if auto_seed:
+                print("📦 Database is empty. Loading sample transactions...")
+                from src.database.data_loader import DataLoader
+                loader = DataLoader()
+                seed_csv = os.getenv("SEED_CSV_PATH", "data/upi_transactions_2024.csv")
+                if os.path.exists(seed_csv):
+                    loader.load_and_populate(csv_path=seed_csv)
+                else:
+                    loader.load_and_populate(num_synthetic=250000)
+                print("✓ Sample data loaded successfully")
             else:
-                loader.load_and_populate(num_synthetic=250000)
-            print("✓ Sample data loaded successfully")
+                print("ℹ Database is empty. Skipping startup seed (AUTO_SEED_ON_STARTUP=false).")
     except Exception as e:
         print(f"✗ Startup error: {e}")
         # Don't crash, continue with empty database if needed
